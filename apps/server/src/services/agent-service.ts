@@ -520,6 +520,7 @@ export class AgentService {
       JSON.stringify([
         await this.capabilityRevisionForProfile(orgId, profileId),
         await this.pluginCapabilityRevision(orgId),
+        this.composioService?.revisionFor(orgId) ?? "",
       ]),
   });
   readonly turns = new TurnRunner({
@@ -6105,7 +6106,13 @@ export class AgentService {
           orgId,
           options.userId,
           profile.id,
-          composioService
+          composioService,
+          {
+            // The web tool is always offered, so a profile with no tools of
+            // its own keeps the assigned-only tool and stays tool-free.
+            channel:
+              limit || resolved.length === 0 ? undefined : options.channel,
+          }
         )),
         ...(await buildComposioToolDefinitions(
           orgId,

@@ -134,6 +134,11 @@ export class ComposioService {
     { fingerprint: string; endpoint: ComposioSessionMcpEndpoint }
   >();
 
+  /** Goes up when the Composio configuration changes, for every org. */
+  private configRevision = 0;
+  /** Goes up on a toolkit, connection, or assignment change in one org. */
+  private readonly orgRevisions = new Map<string, number>();
+
   constructor(
     private readonly databaseAdapter: DatabaseAdapter,
     private readonly authService: AuthService
@@ -379,6 +384,19 @@ export class ComposioService {
     this.reachabilityCache = null;
     this.reachabilityInflight = null;
     this.profileSessionCache.clear();
+    this.configRevision += 1;
+  }
+
+  /**
+   * Chats hold their Composio tools, so the agent rebuilds a chat when this
+   * changes. A change in one org does not rebuild the chats of other orgs.
+   */
+  revisionFor(orgId: string): string {
+    return `${this.configRevision}:${this.orgRevisions.get(orgId) ?? 0}`;
+  }
+
+  private bumpRevision(orgId: string): void {
+    this.orgRevisions.set(orgId, (this.orgRevisions.get(orgId) ?? 0) + 1);
   }
 
   /**
@@ -635,6 +653,7 @@ export class ComposioService {
 
       await this.databaseAdapter.upsertComposioToolkit(updated);
       await this.assignToDefaultProfile(orgId, updated.id);
+      this.bumpRevision(orgId);
 
       return toOrgToolkitSummary(updated);
     }
@@ -653,6 +672,7 @@ export class ComposioService {
 
     await this.databaseAdapter.upsertComposioToolkit(record);
     await this.assignToDefaultProfile(orgId, record.id);
+    this.bumpRevision(orgId);
 
     return toOrgToolkitSummary(record);
   }
@@ -671,6 +691,7 @@ export class ComposioService {
 
     await this.databaseAdapter.upsertComposioToolkit(updated);
     await this.unassignFromAllProfiles(orgId, updated.id);
+    this.bumpRevision(orgId);
 
     return toOrgToolkitSummary(updated);
   }
@@ -906,7 +927,7 @@ export class ComposioService {
     };
 
     await this.databaseAdapter.upsertComposioUserConnection(updatedConnection);
-    this.invalidateProfileSessionCachesForUser(payload.userId);
+    this.invalidateProfileSessionCachesForUser(payload.orgId, payload.userId);
     await this.syncUserToolkit(
       payload.orgId,
       payload.userId,
@@ -947,7 +968,7 @@ export class ComposioService {
     }
 
     await this.databaseAdapter.deleteComposioUserConnection(connection.id);
-    this.invalidateProfileSessionCachesForUser(actingUserId);
+    this.invalidateProfileSessionCachesForUser(orgId, actingUserId);
 
     return toOrgToolkitSummary(orgToolkit);
   }
@@ -1005,7 +1026,7 @@ export class ComposioService {
       await this.databaseAdapter.upsertComposioUserConnection(
         updatedConnection
       );
-      this.invalidateProfileSessionCachesForUser(actingUserId);
+      this.invalidateProfileSessionCachesForUser(orgId, actingUserId);
 
       return toOrgToolkitSummary(updatedOrgToolkit);
     } catch (error) {
@@ -1107,6 +1128,7 @@ export class ComposioService {
       profile.id,
       assignments
     );
+    this.bumpRevision(orgId);
 
     return this.listProfileAssignments(orgId, profile);
   }
@@ -1265,7 +1287,7 @@ export class ComposioService {
       ...lines,
       "",
       ...workflowGuidance,
-      "Only connected toolkits can be invoked. If a connection is missing, call `composio__connect_account` with the toolkit slug and send the user the OAuth link from the tool result.",
+      "Only connected toolkits can be invoked. If a connection is missing, call `composio__connect_account` with the toolkit slug. If the result has an OAuth link, send it to the user.",
     ].join("\n");
   }
 
@@ -1351,7 +1373,11 @@ export class ComposioService {
     });
   }
 
-  private invalidateProfileSessionCachesForUser(userId: string): void {
+  private invalidateProfileSessionCachesForUser(
+    orgId: string,
+    userId: string
+  ): void {
+    this.bumpRevision(orgId);
     const suffix = `:${userId}:`;
 
     for (const key of this.profileSessionCache.keys()) {
