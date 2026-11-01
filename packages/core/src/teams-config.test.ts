@@ -167,52 +167,26 @@ test("expired codes are hidden and cannot pair", async () => {
   });
 });
 
-test("five failed attempts retire a code and regeneration replaces it", async () => {
+test("five failed attempts block only that sender, not the code", async () => {
   await withTempHome("teams-config-", async () => {
     await saveTeamsConfig(input, owner);
-    const first = await regenerateTeamsHandshake(owner);
-
-    const wrong =
-      first.handshakeCode === "0".repeat(32) ? "1".repeat(32) : "0".repeat(32);
+    const { handshakeCode: code } = await regenerateTeamsHandshake(owner);
+    const otherUserId = "55555555-5555-4555-8555-555555555555";
+    const wrong = code === "0".repeat(32) ? "1".repeat(32) : "0".repeat(32);
 
     for (let i = 0; i < 5; i += 1) {
       expect(
-        (await verifyAndPairTeamsUser(wrong, userId, tenantId, owner)).ok
+        (await verifyAndPairTeamsUser(wrong, otherUserId, tenantId, owner)).ok
       ).toBe(false);
     }
 
-    expect((await loadTeamsSettingsPublic(owner)).handshakeCode).toBeNull();
     expect(
-      (
-        await verifyAndPairTeamsUser(
-          first.handshakeCode!,
-          userId,
-          tenantId,
-          owner
-        )
-      ).ok
+      (await verifyAndPairTeamsUser(code!, otherUserId, tenantId, owner)).ok
     ).toBe(false);
-    const second = await regenerateTeamsHandshake(owner);
-    expect(second.handshakeCode).not.toBe(first.handshakeCode);
+
+    expect((await loadTeamsSettingsPublic(owner)).handshakeCode).toBe(code);
     expect(
-      (
-        await verifyAndPairTeamsUser(
-          first.handshakeCode!,
-          userId,
-          tenantId,
-          owner
-        )
-      ).ok
-    ).toBe(false);
-    expect(
-      (
-        await verifyAndPairTeamsUser(
-          second.handshakeCode!,
-          userId,
-          tenantId,
-          owner
-        )
-      ).ok
+      (await verifyAndPairTeamsUser(code!, userId, tenantId, owner)).ok
     ).toBe(true);
   });
 });

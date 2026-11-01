@@ -511,6 +511,8 @@ export async function verifyAndPairBotChannelUser<
     config: Pick<BotChannelConfigFile<TId>, "pairedUserIds" | "allowedUserIds">
   ) => boolean;
   label: string;
+  /** Each sender gets their own guesses; one sender's misses never retire the code. */
+  budgetPerSender?: boolean;
   load: () => Promise<TConfig | null>;
   userId: TId;
   write: (config: TConfig) => Promise<void>;
@@ -542,16 +544,22 @@ export async function verifyAndPairBotChannelUser<
         return failure;
       }
 
-      const budget = getPairingAttemptBudget(options.configDir, expected);
+      const budget = getPairingAttemptBudget(
+        options.budgetPerSender
+          ? `${options.configDir}:${options.userId}`
+          : options.configDir,
+        expected
+      );
 
       if (isPairingAttemptBlocked(budget)) {
         return failure;
       }
 
       if (!pairingCodesMatch(options.handshakeInput, expected)) {
-        // Exhausting the per-code budget retires the code, so a guessing run
-        // cannot keep at the same secret.
-        if (recordPairingFailure(budget)) {
+        // Exhausting a shared budget retires the code, so a guessing run
+        // cannot keep at the same secret. A per-sender budget only blocks
+        // that sender.
+        if (recordPairingFailure(budget) && !options.budgetPerSender) {
           await options.write({ ...config, ...SPENT_HANDSHAKE });
         }
 

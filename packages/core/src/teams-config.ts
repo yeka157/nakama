@@ -351,6 +351,7 @@ export async function verifyAndPairTeamsUser(
   }
 
   return verifyAndPairBotChannelUser<string, TeamsConfigFile>({
+    budgetPerSender: true,
     configDir: getTeamsConfigDir(owner),
     handshakeInput,
     isAuthorized: isTeamsUserAuthorized,
