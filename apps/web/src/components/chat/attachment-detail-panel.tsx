@@ -19,6 +19,8 @@ interface AttachmentDetailPanelProps {
   headerClassName?: string;
   leading?: ReactNode;
   onClose: () => void;
+  /** Called once when a drag ends, with the width the user chose. */
+  onResizeEnd?: (width: number) => void;
   onWidthChange: (width: number) => void;
   resizable?: boolean;
   subtitle?: string | null;
@@ -40,6 +42,7 @@ export function AttachmentDetailPanel({
   fullscreen = false,
   width,
   onWidthChange,
+  onResizeEnd,
   onClose,
   className,
 }: AttachmentDetailPanelProps) {
@@ -103,6 +106,7 @@ export function AttachmentDetailPanel({
     }
 
     draggingRef.current = false;
+    onResizeEnd?.(clampWidth(window.innerWidth - event.clientX));
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -143,14 +147,14 @@ export function AttachmentDetailPanel({
       <div className="@container relative flex min-h-0 flex-1 flex-col">
         <div
           className={cn(
-            "items-center gap-3 border-border border-b px-4 py-3",
+            "h-12 shrink-0 items-center gap-3 border-border border-b px-4",
             leading ? "grid grid-cols-[1fr_auto_1fr]" : "flex justify-between",
             headerClassName
           )}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="min-w-0">
-              <h2 className="truncate font-semibold text-sm">{title}</h2>
+              <h2 className="truncate font-medium text-sm">{title}</h2>
               {leading ? null : subtitle ? (
                 <p className="mt-0.5 truncate text-muted-foreground text-xs">
                   {subtitle}

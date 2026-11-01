@@ -1,7 +1,6 @@
 ---
 name: artifact-design
-description: Design artifacts, HTML pages, dashboards, charts, slides, a slide deck or decks, a presentation or presentations, reports, plans, memos, summaries, code snippets, and logs.
-include-body-on-match: true
+description: Design artifacts such as HTML pages, dashboards, charts, reports, plans, memos, summaries, code snippets, and logs. For slide decks and presentations, use slide-deck-design.
 ---
 
 Design complete deliverables that the user can revisit in the profile **Artifacts** tab.
@@ -9,7 +8,8 @@ These instructions are loaded directly when this skill is active.
 
 ## Choose the output
 
-- Use HTML for visual reports, plans, memos, slide decks, landing pages, and browser games.
+- Use HTML for visual reports, plans, memos, landing pages, and browser games.
+- For slide decks and presentations, follow the slide-deck-design skill. It holds the deck template; load it with load_skill.
 - Keep the format the user requests. Use Markdown for pages only when the user or another active skill requires it.
 - Keep code, logs, and structured data in their appropriate formats. Preserve existing formats when moving files or editing artifacts.
 
@@ -18,7 +18,7 @@ These instructions are loaded directly when this skill is active.
 1. Use the existing design system when the request provides one. Otherwise, base the design on the subject, audience, and content.
 2. Give editorial pages, landing pages, and games a bold treatment. Keep plans, memos, and other working documents polished and restrained.
 3. Write the design plan as CSS custom properties before building the page. Define colors, font families, type sizes, spacing, borders, and radii.
-4. Use those tokens throughout the page. Give every color token a light and dark value, including chart colors and interaction states.
+4. Use those tokens throughout the page, except in SVG attributes (see **Print and PDF**). Give every color token a light and dark value, including chart colors and interaction states.
 5. Support both themes through `prefers-color-scheme`. If an existing design system provides an explicit theme signal, respect it.
 6. Choose typefaces deliberately. Pair fonts only when the pairing improves hierarchy, and keep a consistent type scale with readable fallback fonts.
 7. Use only facts from the request or available sources. Do not add dates, durations, team sizes, customers, quotes, metrics, integrations, or feature details that were not supplied; omit them. Label supplied sample data; a "sample" label does not permit invented content.
@@ -39,7 +39,6 @@ Choose one recipe; adapt it to the subject. These names are design guides, not l
 | **Brief** | Plans and memos: one readable column, a clear decision, ruled action rows. Keep sections open. | Use the shared defaults. |
 | **Ledger** | Reports and dashboards: aligned tabular numbers, directly labeled charts, mono values. Dashboards follow **Dashboards** below. Amber highlights the main finding; neutral tones show context. | `--width: 64rem; --title: clamp(1.75rem, 4vw, 2.5rem);` |
 | **Feature** | Launch pages and explainers: a large heading beside one useful subject visual, then open sections. Stack columns on phones. | `--width: 72rem; --title: clamp(2.5rem, 7vw, 5rem);` |
-| **Deck** | Slide decks and presentations: one 16:9 slide at a time. Follow **Slide decks** below. | Use the shared defaults; size slide text in `cqw`. |
 
 Use this shared token example, then apply only the chosen overrides. Every color alias follows the active theme.
 Inter is intentional for Nakama styling; use other typefaces when the subject calls for them.
@@ -86,20 +85,6 @@ Use this layout when the user asks for a dashboard, KPI page, or performance rep
 6. Table: inside a `<div>` with `overflow-x: auto`, so it scrolls on phones instead of losing columns. Sentence-case headers in `--muted`, plain-text cells (no badges or pills), numeric columns right-aligned with `font-variant-numeric: tabular-nums`. Color only the change column, by meaning.
 7. Do not use uppercase labels, gradients, icons, or decorative badges. When the user supplies only approximate points (for example "from ~340 to ~650"), draw a smooth progression between them and do not print the in-between values. Before you save, check the series against every trend the user named: a crossing, peak, or dip must fall in the stated period. To put a crossing at index k, keep the first series higher at every index before k and the second series higher from k on.
 
-## Slide decks
-
-1. Put each slide in a `<section>` with `aspect-ratio: 16 / 9` and `container-type: size`. Fit the frame to the viewport and size slide text in `cqw`, so every slide keeps the same shape and scale at any width. A slide with `container-type: size` takes no width from its content, so give every element between `<body>` and the slides a set width, such as `width: 100%`. A wrapper that shrinks to fit (a flex or grid item, `inline-block`, a float) collapses the slides to nothing.
-2. Show one slide at a time. Add previous and next buttons, Left/Right and Home/End keys, and an `n / N` counter. Keep every slide in the DOM.
-3. Print one slide per page: show all slides in `@media print`, use `@page { size: 16in 9in; margin: 0; }`, and `break-after: page`.
-4. Keep one idea per slide: a title near `5cqw`, body text at least `2.4cqw`, and at most four one-line points. Do not let content overflow the frame.
-5. Use the full slide width. Pad the slide by about `6cqw` on each side. Put a metric and its chart side by side in a two-column grid, or let a single block span the full width. Do not leave more than a third of the slide empty. When a slide holds only one sentence, set it as the slide's main text at about `6cqw`, not as a small line under a title.
-6. Show a metric as a large number with its change as a direct label, computed from the supplied values, such as `+25%` for 1.2M to 1.5M or `−0.8 pts` for 4% to 3.2%. Do not repeat the number in a sentence below it. When the user supplies a before and after value, put the metric beside a CSS bar chart of both values. Add a CSS bar chart only to compare supplied values. Set each bar height in an inline style as value / max × 100%, for example `style="height: 80%"` for 1.2 when the max is 1.5. Put each bar alone in a track with a fixed height, such as `.track { height: 18cqw; display: flex; align-items: flex-end; }`, and put the value and period labels outside the track, so the labels never shrink a bar or overlap other text.
-7. Use a title slide. Do not add an agenda, summary, closing, or thank-you slide unless the user asks for one.
-8. Give each supplied fact or topic its own slide, and show each fact on one slide only. When the facts fill fewer slides than the user asked for, make fewer slides and say so in your reply; do not split or repeat a fact to reach the count.
-9. Use only the words and facts the user supplied. When an item has no detail, such as "we shipped the new onboarding flow", give it only that sentence, set large as in rule 5. Do not add steps, features, dates, timelines, causes, or results.
-10. Write relative dates as the user wrote them, such as "Friday". Do not turn them into calendar dates.
-11. When the user requests a slide but supplies no content for it, do not fill it with invented items. Show its title, any supplied facts, and one `To add:` line that names what is missing. This is the only placeholder allowed. Name these gaps in your reply.
-
 ## HTML requirements
 
 - Write a complete document with a doctype, language, UTF-8 charset, and viewport metadata.
@@ -112,6 +97,16 @@ Use this layout when the user asks for a dashboard, KPI page, or performance rep
 - Every link and button must work in the page: target an existing `#id`, toggle content, or show inline feedback. Never use `href="#"`; omit actions that cannot work.
 - Render all essential content on load. Do not hide it behind entrance animations or scroll effects. Respect reduced-motion preferences.
 - Keep the HTML at or below 16,000,000 UTF-8 bytes, including embedded assets. A tool or server may impose a lower limit; respect that limit.
+
+## Print and PDF
+
+PDF export renders the HTML without a browser, on A4 paper, in the light theme, and runs no scripts. Write every page so it prints correctly.
+
+1. In SVG attributes, write colors as hex values, such as `fill="#edf2df"`. Never write `fill="var(--surface)"` or `stroke="var(--line)"`: the PDF renderer cannot read `var()` there and draws the shape black. Use the light theme value. For dark mode, give the shape a class and set hex values in the dark media query, such as `.steam { stroke: #708772; }`.
+2. Add `@page { size: A4; margin: 0; }`. Slide decks keep their own `@page` rule.
+3. Make the layout work at 800px wide, the width of an A4 page. Keep nav labels and short buttons on one line with `white-space: nowrap`.
+4. In `@media print`, add `break-inside: avoid` to sections, panels, figures, and table rows, so a page break does not cut them.
+5. Give buttons an explicit `line-height`, such as `1.2`, so their text stays centered in the PDF.
 
 ## Resources and frame limits
 
@@ -130,5 +125,5 @@ Treat these as authoring requirements. Do not claim that Nakama enforces them me
 
 1. Choose the output format.
 2. For HTML, define the CSS tokens, then build the complete page. Keep the design plan in the CSS; do not create a separate planning artifact.
-3. Check the source against the requirements above. Remove placeholder content, unsupported actions, and unapproved resource URLs before saving.
+3. Check the source against the requirements above, including **Print and PDF**. Remove placeholder content, unsupported actions, and unapproved resource URLs before saving.
 4. If browser preview is explicitly requested and available, preview once. Check phone width, both themes, and the requested interactions; fix visible problems. Never claim visual verification from a source review alone.

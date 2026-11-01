@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@nakama/ui/dialog";
 import { Spinner } from "@nakama/ui/spinner";
+import { cn } from "@nakama/ui/utils";
 import { lazy, type ReactNode, Suspense, useMemo, useState } from "react";
 import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { ArtifactStreamingPanelBridge } from "@/components/chat/artifact-streaming-panel-bridge";
@@ -30,7 +31,16 @@ import {
   ChatSetupPill,
 } from "@/pages/chat/chat-onboarding";
 import { shouldShowCognitoControl } from "@/pages/chat/chat-page.shared";
-import { ChatPageColumn, ChatWelcome } from "@/pages/chat/chat-page-layout";
+import {
+  ChatPageColumn,
+  ChatSessionBar,
+  ChatWelcome,
+} from "@/pages/chat/chat-page-layout";
+import {
+  ChatStatusArtifactOpener,
+  ChatStatusButton,
+  ChatStatusProvider,
+} from "@/pages/chat/chat-status-panel";
 import {
   type Onboarding,
   useOnboarding,
@@ -67,6 +77,9 @@ export function ChatPageContent({
     composerDraftKey,
     composerEntry,
     queuedMessages,
+    editQueuedMessage,
+    removeQueuedMessage,
+    sendQueuedMessageNow,
     showOfflineHint,
     health,
     providerModelGroups,
@@ -107,16 +120,27 @@ export function ChatPageContent({
   // A locked cognito chat looks like a normal one: it has no other mode.
   const cognitoSurface = cognito && !cognitoLocked;
 
-  const cognitoControl =
+  const cognitoToggle =
     !cognitoLocked && shouldShowCognitoControl(cognito, isEmptyState) ? (
-      // Pinned to the column's top-right corner, which is the top right of the
-      // screen area. The backdrop keeps it readable over a scrolling transcript.
-      <div className="absolute top-2 right-3 z-20 rounded-full backdrop-blur sm:right-6">
-        <ChatCognitoControl
-          cognito={cognito}
-          disabled={busy || readOnlySession}
-          onCognitoChange={handleCognitoChange}
-        />
+      <ChatCognitoControl
+        cognito={cognito}
+        disabled={busy || readOnlySession}
+        onCognitoChange={handleCognitoChange}
+      />
+    ) : null;
+
+  // Pinned to the column's top-right corner, which is the top right of the
+  // screen area. The backdrop keeps it readable over a scrolling transcript.
+  const cognitoControl = (className?: string, extra?: ReactNode) =>
+    cognitoToggle || extra ? (
+      <div
+        className={cn(
+          "absolute top-2 right-3 z-20 rounded-full backdrop-blur sm:right-6",
+          className
+        )}
+      >
+        {cognitoToggle}
+        {extra}
       </div>
     ) : null;
 
@@ -159,7 +183,10 @@ export function ChatPageContent({
         headerNotice={skillReviewBanner}
         onBtw={onBtw}
         onConnectProvider={() => setProviderDialogOpen(true)}
+        onEditQueuedMessage={editQueuedMessage}
         onModelChange={handleModelChange}
+        onRemoveQueuedMessage={removeQueuedMessage}
+        onSendQueuedMessageNow={sendQueuedMessageNow}
         onStop={stopStreaming}
         onSubmit={(text, files) => {
           void sendMessage(text, files);
@@ -191,7 +218,7 @@ export function ChatPageContent({
   const content = isEmptyState ? (
     <ChatAttachmentPanelProvider below={below} key={session?.id ?? "new"}>
       <ChatPageColumn centered cognito={cognitoSurface}>
-        {cognitoControl}
+        {cognitoControl()}
         <div className="mx-auto mb-12 flex w-full max-w-3xl flex-col gap-1">
           <EmptyChatBody onboarding={onboarding}>
             <ChatWelcome
@@ -210,9 +237,12 @@ export function ChatPageContent({
   ) : (
     <ChatConversation
       below={below}
-      cognitoControl={cognitoControl}
+      // The session bar is hidden on phones, so the status button sits here.
+      cognitoControl={cognitoControl("sm:hidden", <ChatStatusButton />)}
       cognitoSurface={cognitoSurface}
+      cognitoToggle={cognitoToggle}
       composer={composer}
+      showSessionBar={!cognitoLocked}
       showUsage={showUsage}
       state={state}
     />
@@ -305,21 +335,28 @@ function ChatConversation({
   below,
   cognitoControl,
   cognitoSurface,
+  cognitoToggle,
   composer,
+  showSessionBar,
   showUsage,
   state,
 }: {
   below?: ReactNode;
   cognitoControl: ReactNode;
   cognitoSurface: boolean;
+  cognitoToggle: ReactNode;
   composer: ReactNode;
+  showSessionBar: boolean;
   showUsage: boolean;
   state: ChatPageState;
 }) {
   const {
+    activeProfile,
     agentQuestionnaire,
     branchingMessageId,
     busy,
+    cognito,
+    contextUsage,
     currentModelSelection,
     handleBranchMessage,
     handleEditMessage,
@@ -331,64 +368,120 @@ function ChatConversation({
     renderModelLabel,
     sendMessage,
     session,
+    sessionChannel,
     showThinking,
     turnStartedAt,
   } = state;
 
-  return (
-    <ChatAttachmentPanelProvider below={below} key={session?.id ?? "new"}>
-      <ArtifactStreamingPanelBridge messages={messages} profileId={profileId} />
-      <BrowserLiveViewPanelBridge messages={messages} sessionId={session?.id} />
-      <ChatPageColumn cognito={cognitoSurface}>
-        {cognitoControl}
-        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ChatMessageList
-              actionsDisabled={busy || readOnlySession}
-              branchingMessageId={branchingMessageId}
-              contentClassName="mx-auto w-full max-w-3xl px-4"
-              messages={messages}
-              modelLabel={
-                currentModelSelection
-                  ? renderModelLabel(currentModelSelection)
-                  : null
-              }
-              onBranchMessage={(message) => void handleBranchMessage(message)}
-              onContinueToolSetup={async (setupId) => {
-                await sendMessage(
-                  `Build the approved tool setup ${setupId}. Use this setupId with create_tool to connect the saved credentials and selected agent.`,
-                  []
-                );
-              }}
-              onEditMessage={(message, text) =>
-                void handleEditMessage(message, text)
-              }
-              onRetryMessage={(message) => void handleTryAgainMessage(message)}
-              onSubmitQuestionnaire={(answers) => {
-                void sendMessage(
-                  formatAgentQuestionnaireAnswersMessage(answers),
-                  [],
-                  { questionnaireAnswers: answers }
-                );
-              }}
-              profileId={profileId}
-              questionnaire={
-                !busy && queuedMessages.length === 0 ? agentQuestionnaire : null
-              }
-              sessionId={session?.id}
-              showThinking={showThinking}
-              showUsage={showUsage}
-              streamActive={busy}
-              turnStartedAt={turnStartedAt}
-              workStreamActive={turnStartedAt !== null}
-            />
-          </div>
+  // Cognito chats are not kept, so neither is their open panel.
+  const rememberId = session && !cognito ? session.id : undefined;
+  const modelLabel = renderModelLabel(currentModelSelection);
 
-          <div className="sticky bottom-0 z-10 mt-auto w-full shrink-0 bg-background/95 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:pt-4 sm:pb-4">
-            <div className="mx-auto w-full max-w-3xl">{composer}</div>
+  const statusData = useMemo(
+    () => ({
+      busy,
+      channel: sessionChannel,
+      contextUsage,
+      messages,
+      modelLabel,
+      profile: activeProfile,
+      profileId,
+    }),
+    [
+      activeProfile,
+      busy,
+      contextUsage,
+      messages,
+      modelLabel,
+      profileId,
+      sessionChannel,
+    ]
+  );
+
+  return (
+    <ChatStatusProvider data={statusData} key={session?.id ?? "new"}>
+      <ChatAttachmentPanelProvider
+        below={below}
+        key={session?.id ?? "new"}
+        rememberId={rememberId}
+      >
+        <ArtifactStreamingPanelBridge
+          messages={messages}
+          profileId={profileId}
+        />
+        <ChatStatusArtifactOpener />
+        <BrowserLiveViewPanelBridge
+          messages={messages}
+          sessionId={session?.id}
+        />
+        <ChatPageColumn cognito={cognitoSurface}>
+          {cognitoControl}
+          {session && showSessionBar ? (
+            <ChatSessionBar
+              actions={
+                <>
+                  {cognitoToggle}
+                  <ChatStatusButton />
+                </>
+              }
+              cognito={cognito}
+              profileId={profileId}
+              sessionId={session.id}
+            />
+          ) : null}
+          <div className="mx-auto flex min-h-0 w-full flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ChatMessageList
+                actionsDisabled={busy || readOnlySession}
+                branchingMessageId={branchingMessageId}
+                contentClassName="mx-auto w-full max-w-3xl px-4"
+                messages={messages}
+                modelLabel={
+                  currentModelSelection
+                    ? renderModelLabel(currentModelSelection)
+                    : null
+                }
+                onBranchMessage={(message) => void handleBranchMessage(message)}
+                onContinueToolSetup={async (setupId) => {
+                  await sendMessage(
+                    `Build the approved tool setup ${setupId}. Use this setupId with create_tool to connect the saved credentials and selected agent.`,
+                    []
+                  );
+                }}
+                onEditMessage={(message, text) =>
+                  void handleEditMessage(message, text)
+                }
+                onRetryMessage={(message) =>
+                  void handleTryAgainMessage(message)
+                }
+                onSubmitQuestionnaire={(answers) => {
+                  void sendMessage(
+                    formatAgentQuestionnaireAnswersMessage(answers),
+                    [],
+                    { questionnaireAnswers: answers }
+                  );
+                }}
+                profileId={profileId}
+                questionnaire={
+                  !busy && queuedMessages.length === 0
+                    ? agentQuestionnaire
+                    : null
+                }
+                sessionId={session?.id}
+                showThinking={showThinking}
+                showUsage={showUsage}
+                streamActive={busy}
+                turnStartedAt={turnStartedAt}
+                workStreamActive={turnStartedAt !== null}
+              />
+            </div>
+
+            <div className="sticky bottom-0 z-10 mt-auto w-full shrink-0 bg-background/95 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:pt-4 sm:pb-4">
+              <div className="mx-auto w-full max-w-3xl">{composer}</div>
+            </div>
           </div>
-        </div>
-      </ChatPageColumn>
-    </ChatAttachmentPanelProvider>
+        </ChatPageColumn>
+      </ChatAttachmentPanelProvider>
+    </ChatStatusProvider>
   );
 }

@@ -30,6 +30,10 @@ import { useAuth } from "@/context/use-auth";
 import { useChatAttachmentPanel } from "@/context/use-chat-attachment-panel";
 import { useWriteArtifactMutation } from "@/hooks/use-resource-mutations";
 import {
+  printArtifactHtml,
+  resolveArtifactHtmlAssets,
+} from "@/lib/artifact-html-preview";
+import {
   artifactCodeLanguage,
   buildArtifactContentUrl,
   type ChatArtifactRef,
@@ -184,7 +188,9 @@ export function useArtifactAttachmentPreviewPanel({
   id: string;
   artifact: ChatArtifactRef;
 }) {
-  const { show, update, activeId } = useChatAttachmentPanel();
+  const { show, update, activeId, requestRestore } = useChatAttachmentPanel();
+  // The path, not the card id: a card id can change after a reload.
+  const restoreKey = `${profileId}:${artifact.path}`;
 
   const share = useArtifactShareControls({
     artifactPath: artifact.path,
@@ -302,25 +308,26 @@ export function useArtifactAttachmentPreviewPanel({
   }
 
   async function downloadPdf() {
-    try {
-      const pdf = await client
-        .forOrg(activeOrg?.id ?? null)
-        .readProfileArtifactContent(profileId, artifact.path, {
-          render: "pdf",
-        });
+    if (content === null) {
+      return;
+    }
 
-      const url = URL.createObjectURL(
-        new Blob([pdf.data], { type: "application/pdf" })
+    try {
+      const scopedClient = client.forOrg(activeOrg?.id ?? null);
+
+      const html = await resolveArtifactHtmlAssets(
+        content,
+        artifact.path,
+        (path) =>
+          scopedClient.readProfileArtifactContent(profileId, path, {
+            inline: true,
+          }),
+        new AbortController().signal
       );
 
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${header.title}.pdf`;
-      link.click();
-      // Revoking in the same tick can cancel the download in some browsers.
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (downloadError) {
-      toast(formatError(downloadError));
+      printArtifactHtml(html);
+    } catch (printError) {
+      toast(formatError(printError));
     }
   }
 
@@ -559,12 +566,15 @@ export function useArtifactAttachmentPreviewPanel({
     header.typeLabel,
   ]);
 
-  function openPanel() {
+  function resetPanelState() {
     setFullscreen(false);
     setCopied(false);
     setPreviewMode("preview");
     setEditMode(null);
     setSaveError(null);
+  }
+
+  function showPanel() {
     show({
       ...buildPanelConfig("preview"),
       content: buildPanelBody(
@@ -578,16 +588,24 @@ export function useArtifactAttachmentPreviewPanel({
       defaultWidth: artifactPanelDefaultWidth(artifact.filename, mimeType),
       fullscreen: false,
       id,
-      onClose: () => {
-        setFullscreen(false);
-        setCopied(false);
-        setPreviewMode("preview");
-        setEditMode(null);
-        setSaveError(null);
-      },
+      onClose: resetPanelState,
       resizable: true,
+      restoreKey,
     });
   }
+
+  function openPanel() {
+    resetPanelState();
+    showPanel();
+  }
+
+  // Opens again the artifact that was open when the chat was last left. The
+  // card has just mounted, so its own state is already at the defaults.
+  useEffect(
+    () => requestRestore(restoreKey, id, showPanel),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [requestRestore, restoreKey, id]
+  );
 
   return {
     imagePreviewUrl,

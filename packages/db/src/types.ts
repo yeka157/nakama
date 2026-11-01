@@ -1282,6 +1282,9 @@ export interface DatabaseAdapter {
     now: string
   ): Promise<StoredBrowserSessionRecord[]>;
 
+  /** Sessions whose parent is this one: sub_agent chats and branches. */
+  listChildSessions(parentSessionId: string): Promise<StoredSessionRecord[]>;
+
   listComposioToolkitsForOrg(
     orgId: string
   ): Promise<StoredComposioToolkitRecord[]>;
@@ -1358,7 +1361,8 @@ export interface DatabaseAdapter {
   /**
    * Newest first, pinned ahead. `after` is the last row of the previous page;
    * `sessionId` narrows the list to that one session. `userId` keeps the
-   * sessions that user owns, plus every session on a `sharedChannels` channel.
+   * sessions that user owns, plus every session on a `sharedChannels` channel
+   * or whose parent is on one.
    */
   listSessionSummaries(
     profileId: string,

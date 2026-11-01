@@ -18,16 +18,15 @@ import {
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { WebPushPrompt } from "@/components/notifications/web-push-prompt";
 import { ProfileRail } from "@/components/ProfileRail";
 import { RouteBoundary } from "@/components/RouteBoundary";
 import { useBtwChatStore } from "@/context/btw-chat-store";
 import { useAppContext } from "@/context/use-app-context";
 import { useAgentGroupQuery } from "@/hooks/use-agent-groups";
 import { useOrgPlugins } from "@/hooks/use-plugins";
-import {
-  useHistorySessionsQuery,
-  useSessionSummaryQuery,
-} from "@/hooks/use-resource-mutations";
+import { useChatSessionSummary } from "@/hooks/use-resource-mutations";
+import { useOrgFromNotification, usePushPresence } from "@/hooks/use-web-push";
 import {
   enabledPluginNavEntries,
   findNavItem,
@@ -48,6 +47,8 @@ const BtwChatHost = lazy(() =>
 
 export function Layout() {
   const shell = useAppShell();
+  usePushPresence();
+  const switchingOrg = useOrgFromNotification();
   const btwOpen = useBtwChatStore((store) => store.chat !== null);
 
   return (
@@ -78,13 +79,14 @@ export function Layout() {
             <AppShellError error={shell.error} />
             <main className={appShellMainClassName(shell.page, shell.pathname)}>
               <RouteBoundary resetKey={shell.pathname}>
-                <Outlet />
+                {switchingOrg ? null : <Outlet />}
               </RouteBoundary>
             </main>
           </div>
         </div>
       </div>
       <CommandPalette />
+      <WebPushPrompt />
       {btwOpen ? (
         <Suspense fallback={null}>
           <BtwChatHost />
@@ -150,18 +152,10 @@ function useAppShell() {
   const chatProfileId = chatRoute?.params.profileId ?? "";
   const chatSessionId = chatRoute?.params.sessionId ?? null;
 
-  const { data: sessions, hasNextPage } =
-    useHistorySessionsQuery(chatProfileId);
-
-  const listedChat = sessions.find((session) => session.id === chatSessionId);
-
-  // An old chat opened by URL can sit on a page the sidebar has not loaded.
-  const { data: unlistedChat } = useSessionSummaryQuery(
+  const chatTitle = useChatSessionSummary(
     chatProfileId,
-    listedChat || !hasNextPage ? null : chatSessionId
-  );
-
-  const chatTitle = (listedChat ?? unlistedChat)?.title?.trim();
+    chatSessionId
+  )?.title?.trim();
 
   // On a phone the header names the group.
   const groupRoute = groupRouteFromPath(location.pathname);
@@ -254,7 +248,7 @@ function AppShellHeader({
         "app-shell-header gap-2 bg-card px-3 sm:gap-4 sm:px-6",
         // Standalone on iOS the shell owns the status bar, so the bar grows by
         // the top inset and paints its own background under the notch.
-        "h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]",
+        "h-[calc(3rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]",
         // Chat uses the full desktop column; phones still need the header
         // to reach navigation.
         (page === "chat" || hideDesktop) && "sm:hidden"
