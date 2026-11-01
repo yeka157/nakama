@@ -197,47 +197,60 @@ async function writeTeamsConfig(
   );
 }
 
+function mergeTeamsConfig(
+  input: UpdateTeamsSettingsRequest,
+  existing: TeamsConfigFile | null,
+  owner: ChannelOwner
+): TeamsConfigFile {
+  if (input.profileId !== undefined && input.profileId !== owner.profileId) {
+    throw new Error("Invalid Teams connection owner.");
+  }
+
+  return configSchema.parse({
+    allowedUserIds:
+      input.allowedUserIds === undefined
+        ? (existing?.allowedUserIds ?? [])
+        : [
+            ...new Set(
+              input.allowedUserIds
+                .split(",")
+                .map((value) => value.trim().toLowerCase())
+                .filter(Boolean)
+            ),
+          ],
+    clientId: input.clientId?.trim() || existing?.clientId,
+    clientSecret: input.clientSecret?.trim() || existing?.clientSecret,
+    handshakeCode: existing?.handshakeCode ?? null,
+    handshakeExpiresAt: existing?.handshakeExpiresAt ?? null,
+    inboundPort: existing?.inboundPort ?? null,
+    pairedUserIds: existing?.pairedUserIds ?? [],
+    profileId: owner.profileId,
+    tenantId: input.tenantId?.trim() || existing?.tenantId,
+  });
+}
+
 export async function saveTeamsConfig(
   input: UpdateTeamsSettingsRequest,
   owner: ChannelOwner
 ): Promise<TeamsSettingsResponse> {
+  // Microsoft can take 10s to answer, and other writers wait only 5s for the
+  // pairing lock, so the credential check runs before the lock is taken.
+  const saved = await loadTeamsConfigFile(owner);
+  const requested = mergeTeamsConfig(input, saved, owner);
+
+  if (
+    !saved ||
+    requested.clientId !== saved.clientId ||
+    requested.tenantId !== saved.tenantId ||
+    requested.clientSecret !== saved.clientSecret
+  ) {
+    await validateTeamsCredentials(requested);
+  }
+
   return withPairingConfigLock(getTeamsConfigDir(owner), async () => {
     const existing = await loadTeamsConfigFile(owner);
 
-    if (input.profileId !== undefined && input.profileId !== owner.profileId) {
-      throw new Error("Invalid Teams connection owner.");
-    }
-
-    const config = configSchema.parse({
-      allowedUserIds:
-        input.allowedUserIds === undefined
-          ? (existing?.allowedUserIds ?? [])
-          : [
-              ...new Set(
-                input.allowedUserIds
-                  .split(",")
-                  .map((value) => value.trim().toLowerCase())
-                  .filter(Boolean)
-              ),
-            ],
-      clientId: input.clientId?.trim() || existing?.clientId,
-      clientSecret: input.clientSecret?.trim() || existing?.clientSecret,
-      handshakeCode: existing?.handshakeCode ?? null,
-      handshakeExpiresAt: existing?.handshakeExpiresAt ?? null,
-      inboundPort: existing?.inboundPort ?? null,
-      pairedUserIds: existing?.pairedUserIds ?? [],
-      profileId: owner.profileId,
-      tenantId: input.tenantId?.trim() || existing?.tenantId,
-    });
-
-    if (
-      !existing ||
-      config.clientId !== existing.clientId ||
-      config.tenantId !== existing.tenantId ||
-      config.clientSecret !== existing.clientSecret
-    ) {
-      await validateTeamsCredentials(config);
-    }
+    const config = mergeTeamsConfig(input, existing, owner);
 
     const changed =
       existing &&

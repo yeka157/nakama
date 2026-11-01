@@ -92,6 +92,10 @@ export function registerTeamsRoutes(app: HonoApp, options: ServerOptions) {
         )
       );
     } catch (error) {
+      if (error instanceof ChannelConfigBusyError) {
+        return errorResponse("Teams settings are busy. Try again.", 503);
+      }
+
       if (error instanceof NakamaApiError) {
         return errorResponse(error.message, error.status);
       }
