@@ -224,6 +224,7 @@ test("generating a code preserves unsaved credential edits", async () => {
 
 test("after saving, the form shows the ids the server stored", async () => {
   const stored = "aaaabbbb-cccc-4ddd-8eee-ffff00001111";
+
   const loaded = settings({
     allowedUserIds: [stored],
     clientId: CLIENT_ID,
@@ -231,6 +232,7 @@ test("after saving, the form shows the ids the server stored", async () => {
     configured: true,
     tenantId: TENANT,
   });
+
   const { save } = stubApi(loaded);
   save.mockResolvedValue(loaded);
   const container = await renderCard();

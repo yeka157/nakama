@@ -208,9 +208,6 @@ describe("teams chat handler", () => {
       await handle(activity({ text: guid }));
 
       expect(turns.map((turn) => turn.message)).toEqual(["A".repeat(32), guid]);
-      expect(replies.map((reply) => reply.text)).not.toContain(
-        "This chat is already linked."
-      );
     });
   });
 

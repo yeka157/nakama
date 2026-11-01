@@ -137,6 +137,7 @@ try {
       }
     }
   }
+
   await heartbeat.write(true);
   heartbeatTimer = setInterval(() => {
     void heartbeat.write(true);
