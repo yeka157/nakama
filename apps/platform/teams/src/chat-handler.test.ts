@@ -200,12 +200,17 @@ describe("teams chat handler", () => {
     });
   }
 
-  test("a code is never sent to the agent even for an authorized sender", async () => {
+  test("an authorized sender's code-shaped message reaches the agent", async () => {
     await withTempHome("nakama-teams-handler-", async (homeDir) => {
-      const { handle, turns, createdSessions } = createHarness(homeDir);
+      const { handle, replies, turns } = createHarness(homeDir);
+      const guid = "55555555-5555-4555-8555-555555555555";
       await handle(activity({ text: "A".repeat(32) }));
-      expect(turns).toEqual([]);
-      expect(createdSessions).toEqual([]);
+      await handle(activity({ text: guid }));
+
+      expect(turns.map((turn) => turn.message)).toEqual(["A".repeat(32), guid]);
+      expect(replies.map((reply) => reply.text)).not.toContain(
+        "This chat is already linked."
+      );
     });
   });
 

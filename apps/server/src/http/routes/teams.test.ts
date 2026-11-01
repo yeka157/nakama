@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { withPairingConfigLock } from "@nakama/core/channel-config-shared";
 import {
+  getTeamsConfigDir,
   loadTeamsConfigFile,
   regenerateTeamsHandshake,
   verifyAndPairTeamsUser,
@@ -370,6 +372,17 @@ describe("teams settings", () => {
       ).status
     ).toBe(404);
   });
+
+  test("a save while the config is locked returns 503", async () => {
+    const { admin, app, profileId } = await setupOwnedProfile();
+
+    const response = await withPairingConfigLock(
+      getTeamsConfigDir({ orgId: "org_test", profileId }),
+      () => withTokenEndpointStubbed(() => putSettings(app, admin, profileId))
+    );
+
+    expect(response.status).toBe(503);
+  }, 15_000);
 });
 
 describe("teams worker controls", () => {
