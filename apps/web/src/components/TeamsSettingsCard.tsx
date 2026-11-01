@@ -117,11 +117,7 @@ function TeamsPairingRow({
   }
 
   return (
-    <SettingsRow
-      description="Send the code to the bot in a direct message. It expires in 10 minutes."
-      label="Pairing"
-      layout="stacked"
-    >
+    <SettingsRow label="Pairing" layout="stacked">
       <div className="flex flex-wrap items-center gap-2">
         {activeCode ? (
           <>
@@ -254,11 +250,7 @@ export function TeamsSettingsCard() {
         />
       </SettingsRow>
 
-      <SettingsRow
-        description="Entra object IDs, separated by commas. Users can chat when listed here or linked with a pairing code."
-        label="Allowed users"
-        layout="stacked"
-      >
+      <SettingsRow label="Allowed users" layout="stacked">
         <Input aria-label="Allowed users" {...field("allowedUserIds")} />
       </SettingsRow>
 
@@ -266,11 +258,7 @@ export function TeamsSettingsCard() {
         <TeamsPairingRow savePending={save.isPending} settings={settings} />
       ) : null}
 
-      <SettingsRow
-        description="Paste this as the bot's messaging endpoint in the Teams Developer Portal or your Azure Bot."
-        label="Messaging endpoint"
-        layout="stacked"
-      >
+      <SettingsRow label="Messaging endpoint" layout="stacked">
         <MessagingEndpoint endpoint={settings?.messagingEndpoint ?? null} />
       </SettingsRow>
 
