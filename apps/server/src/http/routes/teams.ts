@@ -64,10 +64,7 @@ export function registerTeamsRoutes(app: HonoApp, options: ServerOptions) {
         return errorResponse("Teams settings are busy. Try again.", 503);
       }
 
-      return errorResponse(
-        "Could not generate a code. Save the Teams connection and try again.",
-        400
-      );
+      throw error;
     }
   });
 

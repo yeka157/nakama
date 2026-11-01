@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod";
+import { NakamaApiError } from "./api-error";
 import {
   assertChannelPath,
   type ChannelOwner,
@@ -320,8 +321,9 @@ export async function regenerateTeamsHandshake(
     const config = await loadTeamsConfigFile(owner);
 
     if (!config) {
-      throw new Error(
-        "Save the Teams connection before generating a pairing code."
+      throw new NakamaApiError(
+        "Save the Teams connection before generating a pairing code.",
+        400
       );
     }
 
