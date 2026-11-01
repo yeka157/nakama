@@ -222,6 +222,29 @@ test("generating a code preserves unsaved credential edits", async () => {
   ).toBe(USER);
 });
 
+test("after saving, the form shows the ids the server stored", async () => {
+  const stored = "aaaabbbb-cccc-4ddd-8eee-ffff00001111";
+  const loaded = settings({
+    allowedUserIds: [stored],
+    clientId: CLIENT_ID,
+    clientSecretConfigured: true,
+    configured: true,
+    tenantId: TENANT,
+  });
+  const { save } = stubApi(loaded);
+  save.mockResolvedValue(loaded);
+  const container = await renderCard();
+
+  await typeInto(container, "Allowed users", stored.toUpperCase());
+  await clickButton(container, "Save");
+
+  expect(
+    container.querySelector<HTMLInputElement>(
+      "input[aria-label='Allowed users']"
+    )?.value
+  ).toBe(stored);
+});
+
 test("a failed code request leaves the form available and displays an error", async () => {
   const { generate } = stubApi(settings({ configured: true }));
   generate.mockRejectedValue(new Error("unavailable"));

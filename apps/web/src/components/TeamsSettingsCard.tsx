@@ -279,8 +279,7 @@ export function TeamsSettingsCard() {
           disabled={save.isPending}
           onClick={() =>
             save.mutate(toRequest(form), {
-              onSuccess: () =>
-                setForm((current) => ({ ...current, clientSecret: "" })),
+              onSuccess: (saved) => setForm(formFrom(saved)),
             })
           }
           size="sm"
