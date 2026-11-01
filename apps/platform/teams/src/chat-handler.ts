@@ -160,7 +160,7 @@ export function createTeamsChatHandler(deps: TeamsChatHandlerDeps) {
 
     const sessionKey = `teams:${activity.conversationId}`;
 
-    if (looksLikePairingCode(activity.text)) {
+    if (!allows(config, activity) && looksLikePairingCode(activity.text)) {
       await chatLock.withLock(sessionKey, async () => {
         const result = await verifyAndPairTeamsUser(
           activity.text,
