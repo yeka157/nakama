@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  asTestFetch,
-  withTempHome,
-} from "@nakama/core/channel-test-helpers";
+import { asTestFetch, withTempHome } from "@nakama/core/channel-test-helpers";
 import {
   loadTeamsConfigFile,
   regenerateTeamsHandshake,

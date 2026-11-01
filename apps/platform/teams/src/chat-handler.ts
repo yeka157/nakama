@@ -401,7 +401,7 @@ export function createTeamsChatHandler(deps: TeamsChatHandlerDeps) {
             activity.tenantId,
             owner
           );
-          
+
           await send(activity.conversationId, result.message);
         });
       }
