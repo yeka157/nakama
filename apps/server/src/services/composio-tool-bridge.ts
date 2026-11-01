@@ -398,6 +398,22 @@ export async function buildComposioConnectTools(
   ];
 }
 
+type AssignedToolkitRecord = Awaited<
+  ReturnType<ComposioService["getAssignedToolkitRecords"]>
+>[number];
+
+/** Assignments the agent can use now: enabled, connected and with tools. */
+function connectedWithTools(
+  assigned: AssignedToolkitRecord[]
+): AssignedToolkitRecord[] {
+  return assigned.filter(
+    ({ orgToolkit, userConnection }) =>
+      orgToolkit.status === "enabled" &&
+      userConnection?.status === "connected" &&
+      orgToolkit.cachedTools.length > 0
+  );
+}
+
 export async function buildComposioToolDefinitions(
   orgId: string,
   userId: string,
@@ -426,30 +442,42 @@ export async function buildComposioToolDefinitions(
     return [];
   }
 
-  const connectedAssignments = assigned.filter(
-    ({ orgToolkit, userConnection }) =>
-      orgToolkit.status === "enabled" &&
-      userConnection?.status === "connected" &&
-      orgToolkit.cachedTools.length > 0
-  );
-
-  if (connectedAssignments.length === 0) {
-    return [];
-  }
-
-  const session = await composioService.getProfileSessionEndpoint(
-    orgId,
-    userId,
-    profileId
-  );
-
-  if (!session) {
+  if (connectedWithTools(assigned).length === 0) {
     return [];
   }
 
   const connectionKey = composioConnectionKey(orgId, userId, profileId);
 
+  let session: Awaited<
+    ReturnType<ComposioService["getProfileSessionEndpoint"]>
+  >;
+
+  // Composio is an add-on: when it cannot open a session, the turn runs
+  // without its tools instead of failing. The service keeps the reason, and
+  // the system prompt tells the agent.
+  try {
+    session = await composioService.getProfileSessionEndpoint(
+      orgId,
+      userId,
+      profileId
+    );
+  } catch (error) {
+    console.error("Composio tools are unavailable for this turn:", error);
+
+    return [];
+  }
+
+  if (!session) {
+    return [];
+  }
+
   await ensureComposioMcpConnection(mcpClientManager, connectionKey, session);
+
+  // Opening the session can mark refused accounts as needing reconnection,
+  // so read the assignments again before offering their actions.
+  const connectedAssignments = connectedWithTools(
+    await composioService.getAssignedToolkitRecords(orgId, userId, profileId)
+  );
 
   const searchableActions = buildSearchableActions(connectedAssignments);
 
